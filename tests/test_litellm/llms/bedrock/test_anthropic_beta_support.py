@@ -51,15 +51,15 @@ class TestAnthropicBetaHeaderSupport:
         """Test that Invoke API transformation includes anthropic_beta in request."""
         config = AmazonAnthropicClaudeConfig()
         headers = {"anthropic-beta": "context-1m-2025-08-07,computer-use-2024-10-22"}
-        
+
         result = config.transform_request(
-            model="anthropic.claude-3-5-sonnet-20241022-v2:0",
+            model="anthropic.claude-opus-4-5-20250514-v1:0",
             messages=[{"role": "user", "content": "Test"}],
             optional_params={},
             litellm_params={},
             headers=headers
         )
-        
+
         assert "anthropic_beta" in result
         # Beta flags are stored as sets, so order may vary
         assert set(result["anthropic_beta"]) == {"context-1m-2025-08-07", "computer-use-2024-10-22"}
@@ -68,15 +68,15 @@ class TestAnthropicBetaHeaderSupport:
         """Test that Converse API transformation includes anthropic_beta in additionalModelRequestFields."""
         config = AmazonConverseConfig()
         headers = {"anthropic-beta": "context-1m-2025-08-07,interleaved-thinking-2025-05-14"}
-        
+
         result = config._transform_request_helper(
-            model="anthropic.claude-3-5-sonnet-20241022-v2:0",
+            model="anthropic.claude-opus-4-5-20250514-v1:0",
             system_content_blocks=[],
             optional_params={},
             messages=[{"role": "user", "content": "Test"}],
             headers=headers
         )
-        
+
         assert "additionalModelRequestFields" in result
         additional_fields = result["additionalModelRequestFields"]
         assert "anthropic_beta" in additional_fields
@@ -104,7 +104,7 @@ class TestAnthropicBetaHeaderSupport:
         """Test that user anthropic_beta headers work with computer use tools."""
         config = AmazonConverseConfig()
         headers = {"anthropic-beta": "context-1m-2025-08-07"}
-        
+
         # Computer use tools should automatically add computer-use-2024-10-22
         tools = [
             {
@@ -114,21 +114,22 @@ class TestAnthropicBetaHeaderSupport:
                 "display_height_px": 768
             }
         ]
-        
+
         result = config._transform_request_helper(
-            model="anthropic.claude-3-5-sonnet-20241022-v2:0",
+            model="anthropic.claude-opus-4-5-20250514-v1:0",
             system_content_blocks=[],
             optional_params={"tools": tools},
             messages=[{"role": "user", "content": "Test"}],
             headers=headers
         )
-        
+
         additional_fields = result["additionalModelRequestFields"]
         betas = additional_fields["anthropic_beta"]
-        
+
         # Should contain both user-provided and auto-added beta headers
         assert "context-1m-2025-08-07" in betas
-        assert "computer-use-2024-10-22" in betas
+        # Opus 4.5 gets computer-use-2025-11-24 (not the older 2024-10-22)
+        assert "computer-use-2025-11-24" in betas
         assert len(betas) == 2  # No duplicates
 
     def test_no_anthropic_beta_headers(self):
@@ -471,18 +472,19 @@ class TestBedrockBetaHeaderFiltering:
             "output-128k-2025-02-19",
             "dev-full-thinking-2025-05-14"
         ]
-        
+
         config = AmazonAnthropicClaudeConfig()
         headers = {"anthropic-beta": ",".join(supported_features)}
-        
+
+        # Use Claude 4.5+ model since several features require 4.0+
         result = config.transform_request(
-            model="anthropic.claude-3-5-sonnet-20241022-v2:0",
+            model="anthropic.claude-opus-4-5-20250514-v1:0",
             messages=[{"role": "user", "content": "Test"}],
             optional_params={},
             litellm_params={},
             headers=headers
         )
-        
+
         assert "anthropic_beta" in result
         # Beta flags are stored as sets, so order may vary
         assert set(result["anthropic_beta"]) == set(supported_features)
@@ -668,8 +670,8 @@ class TestBedrockBetaHeaderFiltering:
     def test_converse_anthropic_model_gets_anthropic_beta(self):
         """Test that Anthropic models DO get anthropic_beta in additionalModelRequestFields."""
         config = AmazonConverseConfig()
-        headers = {"anthropic-beta": "context-1m-2025-08-07"}
-        
+        headers = {"anthropic-beta": "computer-use-2025-01-24"}
+
         result = config._transform_request_helper(
             model="anthropic.claude-3-5-sonnet-20241022-v2:0",
             system_content_blocks=[],
@@ -677,18 +679,18 @@ class TestBedrockBetaHeaderFiltering:
             messages=[{"role": "user", "content": "Test"}],
             headers=headers
         )
-        
+
         additional_fields = result.get("additionalModelRequestFields", {})
         assert "anthropic_beta" in additional_fields, (
             "anthropic_beta SHOULD be added for Anthropic models."
         )
-        assert "context-1m-2025-08-07" in additional_fields["anthropic_beta"]
+        assert "computer-use-2025-01-24" in additional_fields["anthropic_beta"]
 
     def test_converse_anthropic_model_with_cross_region_prefix(self):
         """Test that Anthropic models with cross-region prefix still get anthropic_beta."""
         config = AmazonConverseConfig()
-        headers = {"anthropic-beta": "context-1m-2025-08-07"}
-        
+        headers = {"anthropic-beta": "computer-use-2025-01-24"}
+
         # Model with 'us.' cross-region prefix
         result = config._transform_request_helper(
             model="us.anthropic.claude-3-5-sonnet-20241022-v2:0",
@@ -697,12 +699,12 @@ class TestBedrockBetaHeaderFiltering:
             messages=[{"role": "user", "content": "Test"}],
             headers=headers
         )
-        
+
         additional_fields = result.get("additionalModelRequestFields", {})
         assert "anthropic_beta" in additional_fields, (
             "anthropic_beta SHOULD be added for Anthropic models with cross-region prefix."
         )
-        assert "context-1m-2025-08-07" in additional_fields["anthropic_beta"]
+        assert "computer-use-2025-01-24" in additional_fields["anthropic_beta"]
 
     def test_messages_advanced_tool_use_translation_opus_4_5(self):
         """Test that advanced-tool-use header is translated to Bedrock-specific headers for Opus 4.5.

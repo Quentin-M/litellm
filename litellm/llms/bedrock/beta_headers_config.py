@@ -83,6 +83,7 @@ class BedrockAPI(Enum):
 BEDROCK_CORE_SUPPORTED_BETAS: Set[str] = {
     "computer-use-2024-10-22",  # Legacy computer use
     "computer-use-2025-01-24",  # Current computer use (Claude 3.7 Sonnet)
+    "computer-use-2025-11-24",  # Latest computer use (Claude Opus 4.5+)
     "token-efficient-tools-2025-02-19",  # Tool use (Claude 3.7+ and Claude 4+)
     "interleaved-thinking-2025-05-14",  # Interleaved thinking (Claude 4+)
     "output-128k-2025-02-19",  # 128K output tokens (Claude 3.7 Sonnet)
@@ -102,9 +103,11 @@ BEDROCK_API_EXCLUSIONS: Dict[BedrockAPI, Set[str]] = {
 }
 
 # Model version extraction regex pattern
-# Matches: anthropic.claude-{family}-{major}.{minor} or anthropic.claude-{major}.{minor}
-# Examples: anthropic.claude-opus-4.5, anthropic.claude-3-5-sonnet, anthropic.claude-3
-MODEL_VERSION_PATTERN = r"claude-(?:(?:opus|sonnet|haiku)-)?(\\d+)(?:[-.](\\d+))?"
+# Matches Bedrock model IDs in both formats:
+#   New:    claude-{family}-{major}-{minor}-{date}  (e.g., claude-opus-4-5-20250514-v1:0)
+#   Legacy: claude-{major}-{minor}-{family}-{date}  (e.g., claude-3-5-sonnet-20240620-v1:0)
+# Minor version is a single digit followed by a hyphen (to avoid capturing the date).
+MODEL_VERSION_PATTERN = r"claude-(?:(?:opus|sonnet|haiku)-)?(\d+)(?:-(\d)-)?"
 
 # Minimum model version required for each beta header (major.minor format)
 # Default behavior: If a beta header is NOT in this dict, it's supported by ALL Anthropic models
