@@ -24,6 +24,10 @@ COPY . .
 # Convert Windows line endings to Unix and make executable
 RUN sed -i 's/\r$//' docker/build_admin_ui.sh && chmod +x docker/build_admin_ui.sh && ./docker/build_admin_ui.sh
 
+# Fix: add missing __init__.py to all subdirectories so Poetry includes them in the wheel
+RUN find litellm -type d -not -path "*__pycache__*" -exec sh -c \
+    'if ls "$1"/*.py >/dev/null 2>&1 && [ ! -f "$1/__init__.py" ]; then touch "$1/__init__.py"; fi' _ {} \;
+
 # Build the package
 RUN rm -rf dist/* && python -m build
 
@@ -92,6 +96,10 @@ COPY --from=builder /wheels/ /wheels/
 # Install the built wheel using pip; again using a wildcard if it's the only file
 RUN pip install *.whl /wheels/* --no-index --find-links=/wheels/ --no-deps && rm -f *.whl && rm -rf /wheels
 
+# Remove source tree so Python resolves litellm from site-packages (the installed wheel),
+# not from /app/litellm/ which is missing __init__.py in many new subdirectories.
+RUN rm -rf /app/litellm
+
 # Replace the nodejs-wheel-binaries bundled node with the system node (fixes CVE-2025-55130)
 RUN NODEJS_WHEEL_NODE=$(find /usr/lib -path "*/nodejs_wheel/bin/node" 2>/dev/null) && \
     if [ -n "$NODEJS_WHEEL_NODE" ]; then cp /usr/bin/node "$NODEJS_WHEEL_NODE"; fi
@@ -126,7 +134,7 @@ RUN GLOBAL="$(npm root -g)" && \
 RUN sed -i 's/\r$//' docker/install_auto_router.sh && chmod +x docker/install_auto_router.sh && ./docker/install_auto_router.sh
 
 # Generate prisma client using the correct schema
-RUN prisma generate --schema=./litellm/proxy/schema.prisma
+RUN prisma generate --schema=./schema.prisma
 # Convert Windows line endings to Unix for entrypoint scripts
 RUN sed -i 's/\r$//' docker/entrypoint.sh && chmod +x docker/entrypoint.sh
 RUN sed -i 's/\r$//' docker/prod_entrypoint.sh && chmod +x docker/prod_entrypoint.sh
