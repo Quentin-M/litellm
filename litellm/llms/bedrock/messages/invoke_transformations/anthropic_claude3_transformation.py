@@ -240,49 +240,6 @@ class AmazonAnthropicClaudeMessagesConfig(
         """
         return is_claude_4_5_on_bedrock(model)
 
-    def _supports_tool_search_on_bedrock(self, model: str) -> bool:
-        """
-        Check if the model supports tool search on Bedrock.
-
-        On Amazon Bedrock, server-side tool search is supported on Claude Opus 4.5
-        and Claude Sonnet 4.5 with the tool-search-tool-2025-10-19 beta header.
-
-        Ref: https://platform.claude.com/docs/en/agents-and-tools/tool-use/tool-search-tool
-
-        Args:
-            model: The model name
-
-        Returns:
-            True if the model supports tool search on Bedrock
-        """
-        model_lower = model.lower()
-
-        # Supported models for tool search on Bedrock
-        supported_patterns = [
-            # Opus 4.5
-            "opus-4.5",
-            "opus_4.5",
-            "opus-4-5",
-            "opus_4_5",
-            # Sonnet 4.5
-            "sonnet-4.5",
-            "sonnet_4.5",
-            "sonnet-4-5",
-            "sonnet_4_5",
-            # Opus 4.6
-            "opus-4.6",
-            "opus_4.6",
-            "opus-4-6",
-            "opus_4_6",
-            # sonnet 4.6
-            "sonnet-4.6",
-            "sonnet_4.6",
-            "sonnet-4-6",
-            "sonnet_4_6",
-        ]
-
-        return any(pattern in model_lower for pattern in supported_patterns)
-
     def _get_tool_search_beta_header_for_bedrock(
         self,
         model: str,
@@ -313,8 +270,9 @@ class AmazonAnthropicClaudeMessagesConfig(
             programmatic_tool_calling_used or input_examples_used
         ):
             beta_set.discard(ANTHROPIC_TOOL_SEARCH_BETA_HEADER)
-            if self._supports_tool_search_on_bedrock(model):
-                beta_set.add("tool-search-tool-2025-10-19")
+            # Both headers must be sent together; centralized filter handles model restriction
+            beta_set.add("tool-search-tool-2025-10-19")
+            beta_set.add("tool-examples-2025-10-29")
 
     def _convert_output_format_to_inline_schema(
         self,
@@ -421,12 +379,15 @@ class AmazonAnthropicClaudeMessagesConfig(
         # Fixes: https://github.com/BerriAI/litellm/issues/22797
         anthropic_messages_request.pop("output_config", None)
 
+        # 5c. Remove `context_management` from request body (Bedrock doesn't support it as a body param;
+        # the feature is enabled via the anthropic-beta header instead)
+        anthropic_messages_request.pop("context_management", None)
+
         # 5a. Remove `custom` field from tools (Bedrock doesn't support it)
         # Claude Code sends `custom: {defer_loading: true}` on tool definitions,
         # which causes Bedrock to reject the request with "Extra inputs are not permitted"
         # Ref: https://github.com/BerriAI/litellm/issues/22847
         remove_custom_field_from_tools(anthropic_messages_request)
-
         # 6. AUTO-INJECT beta headers based on features used
         anthropic_model_info = AnthropicModelInfo()
         tools = anthropic_messages_optional_request_params.get("tools")
@@ -458,9 +419,6 @@ class AmazonAnthropicClaudeMessagesConfig(
             input_examples_used=input_examples_used,
             beta_set=beta_set,
         )
-
-        if "tool-search-tool-2025-10-19" in beta_set:
-            beta_set.add("tool-examples-2025-10-29")
 
         filtered_auto_betas = filter_and_transform_beta_headers(
             beta_headers=list(beta_set - user_beta_set),
