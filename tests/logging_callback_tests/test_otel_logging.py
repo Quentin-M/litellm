@@ -328,3 +328,33 @@ async def test_arize_phoenix_creates_nested_spans_on_dedicated_provider():
     assert len(trace_ids) == 1, f"Expected single trace, got {len(trace_ids)} traces"
 
     phoenix_exporter.clear()
+
+
+def test_record_metrics_coerces_none_provider_to_unknown():
+    """
+    Regression: OTel attribute validator rejects None for gen_ai.system.
+    When anthropic_messages passthrough to Bedrock leaves custom_llm_provider
+    explicitly set to None in litellm_params, _record_metrics must coerce it
+    to "Unknown" instead of emitting a None-valued attribute.
+    """
+    from unittest.mock import MagicMock
+
+    otel = OpenTelemetry(config=OpenTelemetryConfig(exporter=exporter))
+    otel._operation_duration_histogram = MagicMock()
+    otel._token_usage_histogram = MagicMock()
+
+    start = datetime.now()
+    otel._record_metrics(
+        kwargs={
+            "litellm_params": {"custom_llm_provider": None},
+            "model": "claude-opus-4-7",
+        },
+        response_obj=None,
+        start_time=start,
+        end_time=start,
+    )
+
+    call = otel._operation_duration_histogram.record.call_args
+    attrs = call.kwargs["attributes"]
+    assert attrs["gen_ai.system"] == "Unknown"
+    assert attrs["gen_ai.system"] is not None

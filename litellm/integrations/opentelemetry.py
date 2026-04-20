@@ -1075,7 +1075,8 @@ class OpenTelemetry(OTELGenAISemconvMixin, CustomLogger):
     def _record_metrics(self, kwargs, response_obj, start_time, end_time):
         duration_s = (end_time - start_time).total_seconds()
         params = kwargs.get("litellm_params") or {}
-        provider = params.get("custom_llm_provider", "Unknown")
+        # Treat explicit None the same as missing — OTel rejects None attribute values.
+        provider = params.get("custom_llm_provider") or "Unknown"
 
         common_attrs = {
             "gen_ai.operation.name": (
@@ -1344,9 +1345,10 @@ class OpenTelemetry(OTELGenAISemconvMixin, CustomLogger):
         otel_logger = self._logger_provider.get_logger(LITELLM_LOGGER_NAME)
 
         parent_ctx = span.get_span_context()
+        # Treat explicit None the same as missing — OTel rejects None attribute values.
         provider = (kwargs.get("litellm_params") or {}).get(
-            "custom_llm_provider", "Unknown"
-        )
+            "custom_llm_provider"
+        ) or "Unknown"
 
         if self._gen_ai_semconv_latest_experimental:
             self._emit_inference_details_event(
@@ -2590,7 +2592,9 @@ class OpenTelemetry(OTELGenAISemconvMixin, CustomLogger):
 
         _split_otel_headers = OpenTelemetry._get_headers_dictionary(self.OTEL_HEADERS)
 
-        # Normalize endpoint for logs - ensure it points to /v1/logs instead of /v1/traces
+        # Resolve logs endpoint: prefer OTEL_EXPORTER_OTLP_LOGS_ENDPOINT, then
+        # normalize the generic base. This mirrors the OTel spec's per-signal
+        # precedence.
         normalized_endpoint = self._normalize_otel_endpoint(self.OTEL_ENDPOINT, "logs")
 
         verbose_logger.debug(
