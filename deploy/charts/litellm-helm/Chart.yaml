@@ -33,9 +33,9 @@ annotations:
 dependencies:
   - name: "postgresql"
     version: ">=13.3.0"
-    repository: oci://registry-1.docker.io/bitnamicharts
+    repository: oci://770953171216.dkr.ecr.ap-northeast-1.amazonaws.com/helm-charts/registry-1.docker.io/bitnamicharts
     condition: db.deployStandalone
   - name: redis
     version: ">=18.0.0"
-    repository: oci://registry-1.docker.io/bitnamicharts
+    repository: oci://770953171216.dkr.ecr.ap-northeast-1.amazonaws.com/helm-charts/registry-1.docker.io/bitnamicharts
     condition: redis.enabled
