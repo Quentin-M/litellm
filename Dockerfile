@@ -81,7 +81,8 @@ RUN apk add --no-cache bash openssl tzdata nodejs npm python3 libsndfile supervi
     { apk del --no-cache npm 2>/dev/null || true; }
 
 WORKDIR /app
-ENV PATH="/app/.venv/bin:${PATH}"
+ENV PATH="/app/.venv/bin:${PATH}" \
+    LITELLM_LOCAL_MODEL_COST_MAP=true
 
 COPY --from=builder /app /app
 # Prisma binaries live in $HOME/.cache (default prisma-python location),
