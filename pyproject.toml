@@ -40,7 +40,7 @@ proxy = [
     "gunicorn==23.0.0",
     "uvicorn==0.33.0",
     "uvloop==0.21.0; sys_platform != 'win32'",
-    "fastapi==0.124.4",
+    "fastapi>=0.136.0",
     "backoff==2.2.1",
     "pyyaml==6.0.3",
     "rq==2.7.0",
@@ -225,6 +225,11 @@ build-backend = "uv_build"
 default-groups = ["dev"]
 required-version = ">=0.10.9"
 exclude-newer = "3 days"
+constraint-dependencies = [
+    # Security: Host header injection allows request.url.path forgery, bypassing path-based auth middleware
+    # Directly exploitable via /.well-known/ bypass in MCP server auth (user_api_key_auth_mcp.py)
+    "starlette>=1.0.1",
+]
 
 [tool.uv.sources]
 litellm-proxy-extras = { workspace = true }
